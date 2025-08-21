@@ -10,13 +10,29 @@ import numpy as np
 import soundfile as sf
 
 # Paramètres
-EXCEL_PATH = "Voix Off.xlsx"
-REFERENCE_WAV = "MédhiCloneHigh.wav"  # fichier de référence pour la voix
+EXCEL_PATH = "VoixOff/Voix Off.xlsx"
+REFERENCE_WAV = "Voices/MédhiCloneHigh.wav"  # fichier de référence pour la voix
 OUTPUT_DIR = "tortoise_outputs"
 PRESET = "fast"  # autres: "ultra_fast", "standard", "high_quality" (si supporté)
 USE_PRESET = True  # sera désactivé si la lib ne supporte pas 'preset'
 
+# Configuration GPU
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+USE_DEEPSPEED = False  # Option pour DeepSpeed si disponible
+KVCACHE = True  # Cache pour améliorer les performances sur GPU
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# Vérification de la disponibilité du GPU
+print(f"📊 Configuration d'exécution:")
+print(f"   - Device: {DEVICE}")
+if DEVICE == "cuda":
+    print(f"   - GPU: {torch.cuda.get_device_name(0)}")
+    print(f"   - Mémoire GPU: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+else:
+    print("   - Mode CPU (GPU non disponible)")
+print(f"   - DeepSpeed: {USE_DEEPSPEED}")
+print(f"   - KV Cache: {KVCACHE}")
 
 # Chargement du sample de référence
 if not os.path.exists(REFERENCE_WAV):
@@ -27,12 +43,44 @@ voice_samples = [ref_sample]
 conditioning_latents = None  # Laisser None pour calcul automatique (plus lent la 1ère fois)
 
 # Init du modèle
-tts = TextToSpeech()
+print(f"🔥 Initialisation de Tortoise TTS sur {DEVICE}...")
+try:
+    # Initialisation du modèle avec configuration GPU
+    if DEVICE == "cuda":
+        # Optimisations pour GPU
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+        
+        # Initialisation avec paramètres GPU optimisés
+        tts = TextToSpeech(
+            device=DEVICE,
+            kv_cache=KVCACHE,
+            use_deepspeed=USE_DEEPSPEED
+        )
+    else:
+        # Mode CPU
+        tts = TextToSpeech(device="cpu")
+        
+    print(f"✅ Modèle Tortoise TTS initialisé avec succès")
+except Exception as e:
+    print(f"❌ Erreur lors de l'initialisation du modèle: {e}")
+    # Fallback: essayer sans paramètres spéciaux
+    try:
+        tts = TextToSpeech()
+        print(f"⚠️ Modèle initialisé en mode de compatibilité")
+    except Exception as e2:
+        raise RuntimeError(f"Impossible d'initialiser Tortoise TTS: {e2}")
+
+# Gestion de la mémoire GPU
+if DEVICE == "cuda":
+    torch.cuda.empty_cache()
+    print(f"🧹 Cache GPU vidé après initialisation")
 
 # Pré-calcul des conditioning latents (plus rapide ensuite)
 try:
     if 'voice_samples' in globals() and voice_samples:
         conditioning_latents = tts.get_conditioning_latents(voice_samples=voice_samples)
+        print(f"✅ Conditioning latents pré-calculés")
 except Exception as _e:
     print(f"⚠️ Impossible de pré-calculer les conditioning latents: {_e}")
 
@@ -93,7 +141,7 @@ for _, row in tqdm(data.iterrows(), total=len(data), desc="Génération Tortoise
         continue
 
     safe_title = slugify(slide_title)
-    output_path = os.path.join(OUTPUT_DIR, f"Slide{slide_number}_{safe_title}_tortoise.wav")
+    output_path = os.path.join(OUTPUT_DIR, f"Slide{slide_number}_{safe_title}_tortoise-optim.wav")
 
     # Génération
     try:
@@ -186,5 +234,9 @@ for _, row in tqdm(data.iterrows(), total=len(data), desc="Génération Tortoise
         print(f"✅ Fichier généré : {output_path}")
     except Exception as e:
         print(f"❌ Erreur slide {slide_number}: {e}")
+
+    # Gestion de la mémoire GPU si nécessaire
+    if DEVICE == "cuda":
+        torch.cuda.empty_cache()
 
 print("Terminé.")
