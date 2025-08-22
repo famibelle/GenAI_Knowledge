@@ -2,6 +2,7 @@ import torch
 import pandas as pd
 import os
 from tqdm import tqdm
+import argparse
 
 # Solution pour PyTorch 2.6+ - Ajouter les classes TTS aux globals sûres
 try:
@@ -297,11 +298,11 @@ def generate_audio_with_fallback(tts_model, text, output_path, speaker_wav, lang
                 language=language,
                 split_sentences=False,
                 # Paramètres pour une voix plus chaleureuse
-                temperature=0.75,
-                length_penalty=1.0,
-                repetition_penalty=5.0,
-                top_k=50,
-                top_p=0.85,
+                temperature=0.55,
+                length_penalty=0.9,
+                repetition_penalty=1.5,
+                top_k=30,
+                top_p=0.7,
             )
             return True, tts_model
             
@@ -498,10 +499,23 @@ except Exception as e:
         print("   - Redémarrer le kernel/environnement Python")
         exit(1)
 
+# --- Ajout du support CLI ---
+def parse_args():
+    parser = argparse.ArgumentParser(description="Génération audio XTTS batch")
+    parser.add_argument('--excel', type=str, default="VoixOff/Voix Off.xlsx", help="Fichier Excel des voix off")
+    parser.add_argument('--ref', type=str, default="Voices/MédhiCloneHigh.wav", help="Fichier wav de référence pour le clonage de voix")
+    parser.add_argument('--out', type=str, default="Generated/coqui-xtts_v2", help="Dossier de sortie")
+    return parser.parse_args()
+
+args = parse_args()
+EXCEL_PATH = args.excel
+REFERENCE_WAV = args.ref
+OUTPUT_DIR = args.out
+
 # Paramètres
-EXCEL_PATH = "VoixOff/Voix Off.xlsx"
-REFERENCE_WAV = "Voices/MédhiCloneHigh.wav"
-OUTPUT_DIR = "Generated/coqui-xtts_v2"
+# EXCEL_PATH = "VoixOff/Voix Off.xlsx"
+# REFERENCE_WAV = "Voices/MédhiCloneHigh.wav"
+# OUTPUT_DIR = "Generated/coqui-xtts_v2"
 
 # Créer le dossier de sortie s'il n'existe pas
 os.makedirs(OUTPUT_DIR, exist_ok=True)
