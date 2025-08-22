@@ -559,7 +559,7 @@ for index, row in tqdm(data.iterrows(), total=len(data), desc="Génération audi
             continue
         
         # Générer le nom du fichier de sortie
-        output_path = f"{OUTPUT_DIR}/Slide{slide_number}_{slide_title}.wav"
+        output_path = f"{OUTPUT_DIR}/{os.path.basename(EXCEL_PATH).replace('.xlsx', '')}_Slide{slide_number}_{slide_title}_{os.path.basename(EXCEL_PATH)}.wav"
         
         # Utiliser la fonction de génération robuste
         print(f"🎙️  Traitement Slide {slide_number}: {slide_title[:50]}...")
